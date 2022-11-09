@@ -11,13 +11,19 @@ import com.zgz.config.Contants;
 import com.zgz.config.Environment;
 import com.zgz.enties.CaseInfo;
 import com.zgz.utils.JDBCUtils;
+import io.qameta.allure.Allure;
 import io.restassured.RestAssured;
 import io.restassured.config.JsonConfig;
+import io.restassured.config.LogConfig;
 import io.restassured.path.json.config.JsonPathConfig;
 import io.restassured.response.Response;
 import org.testng.Assert;
 import org.testng.annotations.BeforeSuite;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -44,46 +50,47 @@ public class BaseTest {
      * 封装所有请求类型
      * @param caseInfo 测试用例对象
      * @return response响应对象
+     * v1.0
      */
-    public static Response request(CaseInfo caseInfo){
-        //读取测试用例的请求头
-        String requestHeaders=caseInfo.getRequestHeader();
-        //将请求头转为map类型数据
-        Map requestHeadersMap= JSONObject.parseObject(requestHeaders);
-        //读取测试用例的url
-        String url=caseInfo.getUrl();
-        //读取测试用例的body输入参数
-        String params=caseInfo.getInputParams();
-        //读取测试用例的请求方式
-        String method=caseInfo.getMethod();
-        //封装请求方法
-        Response response=null;
-        if ("get".equalsIgnoreCase(method)) {
-            response = RestAssured.given().log().all()
-                    .headers(requestHeadersMap)
-                    .when().get(url)
-                    .then().log().all()
-                    .extract().response();
-        }
-        else if ("post".equalsIgnoreCase(method)) {
-            response = RestAssured.given().log().all()
-                    .headers(requestHeadersMap)
-                    .body(params)
-                    .when().post(url)
-                    .then().log().all()
-                    .extract().response();
-        }
-        else if ("put".equalsIgnoreCase(method)) {
-            response = RestAssured.given().log().all()
-                    .headers(requestHeadersMap)
-                    .body(params)
-                    .when().post(url)
-                    .then().log().all()
-                    .extract().response();
-        }
-
-        return response;
-    }
+//    public static Response request(CaseInfo caseInfo){
+//        //读取测试用例的请求头
+//        String requestHeaders=caseInfo.getRequestHeader();
+//        //将请求头转为map类型数据
+//        Map requestHeadersMap= JSONObject.parseObject(requestHeaders);
+//        //读取测试用例的url
+//        String url=caseInfo.getUrl();
+//        //读取测试用例的body输入参数
+//        String params=caseInfo.getInputParams();
+//        //读取测试用例的请求方式
+//        String method=caseInfo.getMethod();
+//        //封装请求方法
+//        Response response=null;
+//        if ("get".equalsIgnoreCase(method)) {
+//            response = RestAssured.given().log().all()
+//                    .headers(requestHeadersMap)
+//                    .when().get(url)
+//                    .then().log().all()
+//                    .extract().response();
+//        }
+//        else if ("post".equalsIgnoreCase(method)) {
+//            response = RestAssured.given().log().all()
+//                    .headers(requestHeadersMap)
+//                    .body(params)
+//                    .when().post(url)
+//                    .then().log().all()
+//                    .extract().response();
+//        }
+//        else if ("put".equalsIgnoreCase(method)) {
+//            response = RestAssured.given().log().all()
+//                    .headers(requestHeadersMap)
+//                    .body(params)
+//                    .when().post(url)
+//                    .then().log().all()
+//                    .extract().response();
+//        }
+//
+//        return response;
+//    }
 
     /**
      * 响应断言
@@ -209,6 +216,61 @@ public class BaseTest {
         String expected = caseInfo.getExpected();
         caseInfo.setExpected(regexReplace(expected));
         return caseInfo;
+    }
+
+    /**
+     * 封装所有请求类型
+     * @param caseInfo 测试用例对象
+     * @return response响应对象
+     * v1.1 新增request方法添加日志到allure输出控制逻辑
+     */
+    public static Response request(CaseInfo caseInfo){
+        //在用例基类每个请求添加日志
+        String logFilepath="";
+        //如果开关控制为false，即不在控制台输出日志，才创建日志文件
+        if(!Contants.SHOW_CONSOLE_LOG) {
+            //此处按照接口名称进行日志文件分类处理
+            File dirFile = new File("logs\\" + caseInfo.getInterfaceName());
+            if (!dirFile.exists()) {
+                //如果文件及文件夹不存在，则创建文件及文件夹
+                dirFile.mkdirs();
+            }
+            PrintStream fileOutPutStream = null;
+            //日志文件路径
+            logFilepath = "logs\\" + caseInfo.getInterfaceName() + "\\" + caseInfo.getInterfaceName() + "_" + caseInfo.getCaseId() + ".log";
+            try {
+                fileOutPutStream = new PrintStream(new File(logFilepath));
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+            //每个接口请求的日志单独的保存到本地的每一个文件中
+            RestAssured.config = RestAssured.config().logConfig(LogConfig.logConfig().defaultStream(fileOutPutStream));
+        }
+        String requestHeaders=caseInfo.getRequestHeader();
+        Map requestHeadersMap= JSONObject.parseObject(requestHeaders);
+        String url=caseInfo.getUrl();
+        String params=caseInfo.getInputParams();
+        String method=caseInfo.getMethod();
+        Response response=null;
+        if ("get".equalsIgnoreCase(method)) {
+            response = RestAssured.given().log().all().headers(requestHeadersMap).when().get(url).then().log().all().extract().response();
+        }
+        else if ("post".equalsIgnoreCase(method)) {
+            response = RestAssured.given().log().all().headers(requestHeadersMap).body(params).when().post(url).then().log().all().extract().response();
+        }
+        else if ("put".equalsIgnoreCase(method)) {
+            response = RestAssured.given().log().all().headers(requestHeadersMap).body(params).when().post(url).then().log().all().extract().response();
+        }
+        //可以在此处添加想要的信息到日志文件中
+        //请求结束之后将接口日志添加到allure报表中
+        if(!Contants.SHOW_CONSOLE_LOG) {
+            try {
+                Allure.addAttachment("接口请求响应日志", new FileInputStream(logFilepath));
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+        return response;
     }
 
 }

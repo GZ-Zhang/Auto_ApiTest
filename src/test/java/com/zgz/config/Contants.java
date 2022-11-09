@@ -1,10 +1,4 @@
-package com.zgz.config;/**
- * @Author ZHANG
- * @PackageName Auto_ApiTest
- * @Package com.zgz.config
- * @Date 2022/11/8 23:09
- * @Version 1.0
- */
+package com.zgz.config;
 
 /**
  * @BelongsProject: Auto_ApiTest
